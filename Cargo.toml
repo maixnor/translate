@@ -8,10 +8,11 @@ authors = ["Benjamin Meixner <benjamin@maixnor.com>"]
 
 [dependencies]
 egui = "0.19"
-eframe = "0.19"
+eframe = { version = "0.19", features = ["persistence"]}
 serde = "1.0.146"
 rfd = "0.10"
 fs = "0.0.5"
+image = "0.24.4"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
