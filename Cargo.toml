@@ -1,0 +1,28 @@
+[package]
+name = "ascii"
+version = "0.1.0"
+edition = "2021"
+authors = ["Benjamin Meixner <benjamin@maixnor.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+egui = "0.19"
+eframe = "0.19"
+serde = "1.0.146"
+rfd = "0.10"
+fs = "0.0.5"
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tracing-subscriber = "0.3"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+tracing-wasm = "0.2"
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
+[patch.crates-io]
