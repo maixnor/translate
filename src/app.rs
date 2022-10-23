@@ -2,21 +2,14 @@ use image::GenericImageView;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[derive(Default)]
 pub struct App {
     dropped_files: Vec<egui::DroppedFile>,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            // Example stuff:
-            dropped_files: vec![],
-        }
-    }
-}
-
 impl App {
     /// Called once before the first frame.
+    #[allow(dead_code)]
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customized the look at feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
@@ -47,19 +40,15 @@ impl eframe::App for App {
             });
         });
 
-        // side_panel(ctx, filename);
+        side_panel(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-
             match dropped_files.first() {
-                Some(file) => display_image_bytes(ui, &file.bytes.as_ref().unwrap().to_vec()),
+                Some(file) => display_image(ui, file),
                 None => {
                     ui.label("drag-and-drop image files to convert to ascii art!");
                 }
             };
-
-            egui::warn_if_debug_build(ui);
         });
 
         preview_files_being_dropped(ctx);
@@ -102,14 +91,9 @@ fn preview_files_being_dropped(ctx: &egui::Context) {
     }
 }
 
-fn side_panel(ctx: &egui::Context, filename: &mut String) {
+fn side_panel(ctx: &egui::Context) {
     egui::SidePanel::left("side_panel").show(ctx, |ui| {
         ui.heading("Side Panel");
-
-        ui.horizontal(|ui| {
-            ui.label("Write something: ");
-            ui.text_edit_singleline(filename);
-        });
 
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             ui.horizontal(|ui| {
@@ -124,20 +108,41 @@ fn side_panel(ctx: &egui::Context, filename: &mut String) {
                 ui.label(".");
             });
         });
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
+            egui::warn_if_debug_build(ui);
+        })
     });
 }
 
-fn get_str_ascii(intent: u8) -> &'static str {
+fn get_ascii_char(intent: u8) -> char {
     let index = intent / 32;
-    let ascii = [" ", ".", ",", "-", "~", "+", "=", "@"];
-    return ascii[index as usize];
+    let ascii = [' ', '.', ',', '-', '~', '+', '=', '@'];
+    ascii[index as usize]
+}
+#[cfg(target_arch = "wasm32")]
+fn display_image(ui: &mut egui::Ui, file: &egui::DroppedFile) {
+    display_image_bytes(
+        ui,
+        file.bytes
+            .as_ref()
+            .expect("could not load bytes from dropped file"),
+    );
 }
 
-fn max(a: u32, b: u32) -> u32 {
-    match a < b {
-        true => b,
-        false => a,
-    }
+#[cfg(not(target_arch = "wasm32"))]
+fn display_image(ui: &mut egui::Ui, file: &egui::DroppedFile) {
+    display_image_bytes(
+        ui,
+        std::fs::read(
+            file.path
+                .as_ref()
+                .expect("could not load path from dropped file")
+                .display()
+                .to_string(),
+        )
+        .expect("could not read from path")
+        .as_slice(),
+    );
 }
 
 fn display_image_bytes(ui: &mut egui::Ui, bytes: &[u8]) {
@@ -148,36 +153,64 @@ fn display_image_bytes(ui: &mut egui::Ui, bytes: &[u8]) {
         .unwrap();
 
     match reader.decode() {
-        Ok(img) => ui.monospace(convert_into_ascii(img)),
+        Ok(img) => ui.monospace(convert_to_ascii(img)),
         Err(_) => ui.label("Not a valid Image!"),
     };
 }
 
-fn display_image(ui: &mut egui::Ui, picked_path: &String) {
-    match image::open(picked_path) {
-        Ok(img) => ui.monospace(convert_into_ascii(img)),
-        Err(_) => ui.label("Not a valid Image!"),
-    };
-}
-
-fn convert_into_ascii(img: image::DynamicImage) -> String {
-    let mut ascii = "".to_string();
-    let (width, height) = img.dimensions();
-    let scale = max(height / 75, width / 150);
-    for y in 0..height / scale {
-        for x in 0..width / scale {
-            if y * scale % (scale * 2) == 0 && x * scale % scale == 0 {
-                let pix = img.get_pixel(x * scale, y * scale);
-                let mut intent = pix[0] / 3 + pix[1] / 3 + pix[2] / 3;
-                if pix[3] == 0 {
-                    intent = 0;
-                }
-                ascii.push_str(get_str_ascii(intent));
-            }
-        }
-        if y * scale % (scale * 2) == 0 {
-            ascii.push_str("\n");
+#[allow(unused_variables)]
+fn min(a: u32, b: u32) -> u32 {
+    if a == 0 || b == 0 {
+        1
+    } else {
+        match a < b {
+            true => a,
+            false => b,
         }
     }
+}
+
+fn convert_to_ascii(img: image::DynamicImage) -> String {
+    let (width, height) = img.dimensions();
+    let scale = min(width / 150, height / 100);
+    let (width, height) = ((width / scale) - 1, (height / scale / 2) - 1);
+
+    let mut ascii = "".to_string();
+
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = img.get_pixel(x * scale, y * scale * 2);
+            let intent = intent(pixel);
+            let character = get_ascii_char(intent);
+            ascii.push(character);
+        }
+        ascii.push('\n');
+    }
+
     ascii
+}
+
+fn intent(rgb: image::Rgba<u8>) -> u8 {
+    match rgb.0[3] == 0 {
+        true => 0,
+        false => 255 - (rgb.0[0] / 3 + rgb.0[1] / 3 + rgb.0[2] / 3),
+    }
+}
+
+#[test]
+#[allow(unused_variables)]
+fn test_heart() {
+    let image = image::open("/home/maixnor/Pictures/heart.png").unwrap();
+    let ascii = convert_to_ascii(image);
+    // did not crash!
+    assert!(true)
+}
+
+#[test]
+#[allow(unused_variables)]
+fn test_pug() {
+    let image = image::open("/home/maixnor/Pictures/pug.png").unwrap();
+    let ascii = convert_to_ascii(image);
+    // did not crash!
+    assert!(true)
 }
