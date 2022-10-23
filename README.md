@@ -24,3 +24,8 @@ I decided to combine them and created this app.
 ### Run from static site hosting
 
 [from Github](github.io/maixnor/ascii)
+
+### Deployment Status
+
+[![CI](https://github.com/maixnor/ascii/actions/workflows/rust.yml/badge.svg)](https://github.com/maixnor/ascii/actions/workflows/rust.yml)
+[![Github Pages](https://github.com/maixnor/ascii/actions/workflows/pages.yml/badge.svg)](https://github.com/maixnor/ascii/actions/workflows/pages.yml)
