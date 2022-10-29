@@ -32,11 +32,7 @@ jobs:
         # relatively as eframe_template/favicon.ico. if we skip public-url option, the href paths will instead request username.github.io/favicon.ico which
         # will obviously return error 404 not found.
       - name: Build # build
-        run: ./trunk build --release --public-url "https://red-tree-09385b503.2.azurestaticapps.net"
-      - name: Hacky artifact manipulation
-        run |
-          mkdir ascii
-          mv ascii.js ascii_bg.wasm manifest.json sw.js ascii
+        run: ./trunk build --release 
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
