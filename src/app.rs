@@ -1,11 +1,49 @@
-pub mod convert;
-use crate::app::convert::convert_to_ascii;
+use serde::{Deserialize, Serialize};
+use serde_json::Result;
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Deserialize, Serialize, Default, PartialEq)]
+enum Language {
+    #[default]
+    Klingon,
+    Yoda,
+}
+
+impl Language {
+    fn as_string(&self) -> &str {
+        match self {
+            Language::Klingon => "Klingon",
+            Language::Yoda => "Yoda Speak",
+        }
+    }
+
+    fn as_query(&self) -> &str {
+        match self {
+            Language::Klingon => "klingon",
+            Language::Yoda => "yoda",
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct TranslationResponse {
+    contents: Translation,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Translation {
+    translated: String,
+    text: String,
+    translation: String,
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 #[derive(Default)]
 pub struct App {
     dropped_files: Vec<egui::DroppedFile>,
+    input_text: String,
+    output_text: String,
+    language: Language,
 }
 
 impl App {
@@ -23,12 +61,32 @@ impl App {
 
         Default::default()
     }
+
+    fn translate(&mut self) {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let res = rt.block_on(async {
+            let query = "https://api.funtranslations.com/translate/".to_owned()
+                + self.language.as_query()
+                + "?text="
+                + &self.input_text;
+
+            let returned = reqwest::get(query).await.unwrap().text().await.unwrap();
+            println!("{}", returned);
+            returned
+        });
+
+        let response: TranslationResponse =
+            serde_json::from_str(&res).expect("json deserializing did not work");
+        self.output_text = response.contents.translated;
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { dropped_files } = self;
-
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -41,16 +99,31 @@ impl eframe::App for App {
             });
         });
 
-        side_panel(ctx);
+        side_panel(ctx, &mut self.language);
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            match dropped_files.first() {
-                Some(file) => display_image(ui, file),
-                None => {
-                    ui.label("drag-and-drop image files to convert to ascii art!");
-                }
-            };
+            ui.heading("Tranlate something!");
+
+            ui.text_edit_multiline(&mut self.input_text);
+            if ui
+                .button("Translate to ".to_owned() + self.language.as_string())
+                .clicked()
+            {
+                self.translate();
+            }
+
+            ui.separator();
+            ui.label(self.output_text.to_string())
         });
+
+        // egui::CentralPanel::default().show(ctx, |ui| {
+        //     match dropped_files.first() {
+        //         Some(file) => display_image(ui, file),
+        //         None => {
+        //             ui.label("drag-and-drop image files to convert to ascii art!");
+        //         }
+        //     };
+        // });
 
         preview_files_being_dropped(ctx);
 
@@ -92,9 +165,16 @@ fn preview_files_being_dropped(ctx: &egui::Context) {
     }
 }
 
-fn side_panel(ctx: &egui::Context) {
+fn side_panel(ctx: &egui::Context, language: &mut Language) {
     egui::SidePanel::left("side_panel").show(ctx, |ui| {
-        ui.heading("Side Panel");
+        ui.heading("Language");
+
+        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+            ui.vertical(|ui| {
+                ui.radio_value(language, Language::Klingon, "Klingon");
+                ui.radio_value(language, Language::Yoda, "Yoda Speak");
+            });
+        });
 
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             ui.horizontal(|ui| {
@@ -113,61 +193,4 @@ fn side_panel(ctx: &egui::Context) {
             egui::warn_if_debug_build(ui);
         })
     });
-}
-
-#[cfg(target_arch = "wasm32")]
-fn display_image(ui: &mut egui::Ui, file: &egui::DroppedFile) {
-    display_image_bytes(
-        ui,
-        file.bytes
-            .as_ref()
-            .expect("could not load bytes from dropped file"),
-    );
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn display_image(ui: &mut egui::Ui, file: &egui::DroppedFile) {
-    display_image_bytes(
-        ui,
-        std::fs::read(
-            file.path
-                .as_ref()
-                .expect("could not load path from dropped file")
-                .display()
-                .to_string(),
-        )
-        .expect("could not read from path")
-        .as_slice(),
-    );
-}
-
-fn display_image_bytes(ui: &mut egui::Ui, bytes: &[u8]) {
-    use std::io::Cursor;
-
-    let reader = image::io::Reader::new(Cursor::new(bytes))
-        .with_guessed_format()
-        .unwrap();
-
-    match reader.decode() {
-        Ok(img) => ui.monospace(convert_to_ascii(img)),
-        Err(_) => ui.label("Not a valid Image!"),
-    };
-}
-
-#[test]
-#[allow(unused_variables)]
-fn test_heart() {
-    let image = image::open("/home/maixnor/Pictures/heart.png").unwrap();
-    let ascii = convert_to_ascii(image);
-    // did not crash!
-    assert!(true)
-}
-
-#[test]
-#[allow(unused_variables)]
-fn test_pug() {
-    let image = image::open("/home/maixnor/Pictures/pug.png").unwrap();
-    let ascii = convert_to_ascii(image);
-    // did not crash!
-    assert!(true)
 }
