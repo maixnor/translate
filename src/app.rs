@@ -79,8 +79,7 @@ impl App {
             returned
         });
 
-        let response: TranslationResponse =
-            serde_json::from_str(&res).expect("json deserializing did not work");
+        let response: TranslationResponse = serde_json::from_str(&res).expect("");
         self.output_text = response.contents.translated;
     }
 }

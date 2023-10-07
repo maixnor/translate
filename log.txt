@@ -1,0 +1,22 @@
+[2m2022-11-01T16:57:09.148022Z[0m [32m INFO[0m [2mwinit::platform_impl::platform::x11::window[0m[2m:[0m Guessed window scale factor: 1.1666666666666667    
+[2m2022-11-01T16:57:09.198679Z[0m [31mERROR[0m [2megui_winit::clipboard[0m[2m:[0m Cannot initialize smithay clipboard without a display handle!
+{
+    "success": {
+        "total": 1
+    },
+    "contents": {
+        "translated": "A real shame,  this terminal is.Me select the output,  it won't let.",
+        "text": "this terminal is a real shame.it won't let me select the output.",
+        "translation": "yoda"
+    }
+}
+{
+    "success": {
+        "total": 1
+    },
+    "contents": {
+        "translated": "A real shame,  this terminal is.Me select the output,  it won't let.",
+        "text": "this terminal is a real shame.it won't let me select the output.",
+        "translation": "yoda"
+    }
+}
